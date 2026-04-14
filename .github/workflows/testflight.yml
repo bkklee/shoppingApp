@@ -29,8 +29,10 @@ jobs:
       - name: 📦 Install dependencies
         run: npm ci
 
-      - name: 🚀 Build locally and Submit to TestFlight
-        run: eas build --platform ios --profile production --local --non-interactive --auto-submit
+      - name: 🛠 Build Production IPA (Local)
+        run: npx eas build --platform ios --profile production --local --non-interactive --output=./pricebite-hk.ipa
+
+      - name: 📤 Submit to App Store Connect
+        run: npx eas submit --platform ios --profile production --path ./pricebite-hk.ipa --non-interactive
         env:
-          # Apple App-Specific Password for EAS Submit
           EXPO_APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.EXPO_APPLE_APP_SPECIFIC_PASSWORD }}
