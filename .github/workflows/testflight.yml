@@ -26,13 +26,17 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: 📦 Install dependencies
-        run: npm ci
+      - name: 📦 Install EAS CLI and Dependencies
+        run: |
+          npm install -g eas-cli
+          npm ci
 
       - name: 🛠 Build Production IPA (Local)
-        run: npx eas build --platform ios --profile production --local --non-interactive --output=./pricebite-hk.ipa
+        run: eas build --platform ios --profile production --local --non-interactive --output=./pricebite-hk.ipa
+        env:
+          EAS_BUILD_NO_EXPO_GO_WARNING: true
 
       - name: 📤 Submit to App Store Connect
-        run: npx eas submit --platform ios --profile production --path ./pricebite-hk.ipa --non-interactive
+        run: eas submit --platform ios --profile production --path ./pricebite-hk.ipa --non-interactive
         env:
           EXPO_APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.EXPO_APPLE_APP_SPECIFIC_PASSWORD }}
