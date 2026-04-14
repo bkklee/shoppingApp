@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "shoppingApp",
-    "slug": "shoppingApp",
+    "name": "PriceBite HK",
+    "slug": "PriceBiteHK",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -43,6 +43,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f98756c8-1ea5-4ef8-9b99-cb9790396cea"
+      }
     }
   }
 }
