@@ -8,8 +8,8 @@ on:
 
 jobs:
   build-and-submit:
-    name: Build & Submit iOS App
-    runs-on: ubuntu-latest
+    name: Build & Submit iOS App locally
+    runs-on: macos-latest
     steps:
       - name: 🏗 Setup repository
         uses: actions/checkout@v4
@@ -29,8 +29,8 @@ jobs:
       - name: 📦 Install dependencies
         run: npm ci
 
-      - name: 🚀 Build and Submit to TestFlight
-        run: eas build --platform ios --profile production --non-interactive --auto-submit
+      - name: 🚀 Build locally and Submit to TestFlight
+        run: eas build --platform ios --profile production --local --non-interactive --auto-submit
         env:
           # Apple App-Specific Password for EAS Submit
           EXPO_APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.EXPO_APPLE_APP_SPECIFIC_PASSWORD }}
