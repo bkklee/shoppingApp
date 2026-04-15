@@ -19,62 +19,75 @@ const calculateJetsoPrice = (quantity: number, basePrice: number, offerText?: st
   if (!offerText || quantity <= 0) return basePrice * quantity;
   
   const text = offerText.toLowerCase();
+  const subOffers = text.split('/').map(s => s.trim());
   
-  // Pattern 1: X for $Y or Buy X at $Y or Buy X item(s) for $Y
-  const forMatch = text.match(/(?:buy\s+)?(\d+)(?:\s+item\(s\))?\s+(?:for|at)\s+\$?(\d+(?:\.\d+)?)/);
-  if (forMatch) {
-    const x = parseInt(forMatch[1], 10);
-    const y = parseFloat(forMatch[2]);
-    if (x > 0) {
-      const times = Math.floor(quantity / x);
-      const remainder = quantity % x;
-      return (times * y) + (remainder * basePrice);
+  let bestTotalPrice = basePrice * quantity;
+
+  for (const subOffer of subOffers) {
+    let currentOfferPrice = basePrice * quantity;
+
+    // Pattern 1: X for $Y or Buy X at $Y or Buy X item(s) for $Y
+    const forMatch = subOffer.match(/(?:buy\s+)?(\d+)(?:\s+item\(s\))?\s+(?:for|at)\s+\$?(\d+(?:\.\d+)?)/);
+    if (forMatch) {
+      const x = parseInt(forMatch[1], 10);
+      const y = parseFloat(forMatch[2]);
+      if (x > 0) {
+        const times = Math.floor(quantity / x);
+        const remainder = quantity % x;
+        currentOfferPrice = (times * y) + (remainder * basePrice);
+      }
+    }
+    // Pattern 2: Buy X to save $Y
+    else if (subOffer.match(/buy\s+(\d+)\s+to\s+save\s+\$?(\d+(?:\.\d+)?)/)) {
+      const saveMatch = subOffer.match(/buy\s+(\d+)\s+to\s+save\s+\$?(\d+(?:\.\d+)?)/);
+      if (saveMatch) {
+        const x = parseInt(saveMatch[1], 10);
+        const y = parseFloat(saveMatch[2]);
+        if (x > 0) {
+          const times = Math.floor(quantity / x);
+          currentOfferPrice = (quantity * basePrice) - (times * y);
+        }
+      }
+    }
+    // Pattern 3: Buy X get Y Free
+    else if (subOffer.match(/(?:buy|add)\s+(\d+)(?:\s+item\(s\)?(?:\s+to\s+cart\s+and)?)?\s+get\s+(\d+)\s+free/)) {
+      const freeMatch = subOffer.match(/(?:buy|add)\s+(\d+)(?:\s+item\(s\)?(?:\s+to\s+cart\s+and)?)?\s+get\s+(\d+)\s+free/);
+      if (freeMatch) {
+        const x = parseInt(freeMatch[1], 10);
+        const y = parseInt(freeMatch[2], 10);
+        if (x > 0 && y > 0) {
+          const groupSize = x + y;
+          const groups = Math.floor(quantity / groupSize);
+          const remainder = quantity % groupSize;
+          const paidItems = (groups * x) + Math.min(remainder, x);
+          currentOfferPrice = paidItems * basePrice;
+        }
+      }
+    }
+    // Pattern 4: 2nd 50% off
+    else if (subOffer.includes('2nd 50% off') || subOffer.includes('50% for 2nd') || subOffer.includes('2nd item for 50% off')) {
+      const groups = Math.floor(quantity / 2);
+      const remainder = quantity % 2;
+      currentOfferPrice = (groups * 1.5 * basePrice) + (remainder * basePrice);
+    }
+    // Pattern 5: Buy X to get Y% off / X or more Y% off
+    else {
+      const percentMatch = subOffer.match(/(?:buy\s+(\d+)\s+to\s+get\s+)?(\d+(?:\.\d+)?)\s*%?\s*off/);
+      if (percentMatch) {
+        const threshold = percentMatch[1] ? parseInt(percentMatch[1], 10) : 1;
+        const discount = parseFloat(percentMatch[2]);
+        if (quantity >= threshold && discount > 0 && discount <= 100) {
+          currentOfferPrice = (basePrice * quantity) * (1 - (discount / 100));
+        }
+      }
+    }
+
+    if (currentOfferPrice < bestTotalPrice) {
+      bestTotalPrice = currentOfferPrice;
     }
   }
 
-  // Pattern 2: Buy X to save $Y
-  const saveMatch = text.match(/buy\s+(\d+)\s+to\s+save\s+\$?(\d+(?:\.\d+)?)/);
-  if (saveMatch) {
-    const x = parseInt(saveMatch[1], 10);
-    const y = parseFloat(saveMatch[2]);
-    if (x > 0) {
-      const times = Math.floor(quantity / x);
-      return (quantity * basePrice) - (times * y);
-    }
-  }
-  
-  // Pattern 3: Buy X get Y Free
-  const freeMatch = text.match(/(?:buy|add)\s+(\d+)(?:\s+item\(s\)?(?:\s+to\s+cart\s+and)?)?\s+get\s+(\d+)\s+free/);
-  if (freeMatch) {
-    const x = parseInt(freeMatch[1], 10);
-    const y = parseInt(freeMatch[2], 10);
-    if (x > 0 && y > 0) {
-      const groupSize = x + y;
-      const groups = Math.floor(quantity / groupSize);
-      const remainder = quantity % groupSize;
-      const paidItems = (groups * x) + Math.min(remainder, x);
-      return paidItems * basePrice;
-    }
-  }
-  
-  // Pattern 4: 2nd 50% off
-  if (text.includes('2nd 50% off') || text.includes('50% for 2nd') || text.includes('2nd item for 50% off')) {
-    const groups = Math.floor(quantity / 2);
-    const remainder = quantity % 2;
-    return (groups * 1.5 * basePrice) + (remainder * basePrice);
-  }
-
-  // Pattern 5: Percentage discounts
-  const percentMatch = text.match(/(?:(\d+)\s+(?:or\s+more\s+)?(?:for\s+)?)?(\d+(?:\.\d+)?)\s*%?\s*off/);
-  if (percentMatch) {
-    const threshold = percentMatch[1] ? parseInt(percentMatch[1], 10) : 1;
-    const discount = parseFloat(percentMatch[2]);
-    if (quantity >= threshold && discount > 0 && discount <= 100) {
-      return (basePrice * quantity) * (1 - (discount / 100));
-    }
-  }
-
-  return basePrice * quantity;
+  return bestTotalPrice;
 };
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
