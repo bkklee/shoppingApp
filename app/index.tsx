@@ -30,8 +30,11 @@ export default function HomeScreen() {
         setDownloadProgress(Math.min(written / total, 1));
       });
       
-      setData(fetchedData);
-      setFilteredData(fetchedData);
+      // Filter out items with no prices
+      const validData = fetchedData.filter(item => item.prices && item.prices.length > 0);
+      
+      setData(validData);
+      setFilteredData(validData);
     } catch (e) {
       setError('無法獲取數據。請稍後再試。');
     } finally {
