@@ -1,14 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, FlatList, TextInput, ActivityIndicator, SafeAreaView, Platform, StatusBar } from 'react-native';
+import React, { useState, useEffect, useMemo } from 'react';
+import { StyleSheet, View, Text, FlatList, TextInput, ActivityIndicator, SafeAreaView, Platform, StatusBar, ScrollView, TouchableOpacity } from 'react-native';
 import { fetchPriceWatchData, Product } from '../services/api';
 import { ProductCard } from '../components/ProductCard';
 
 export default function HomeScreen() {
   const [data, setData] = useState<Product[]>([]);
-  const [filteredData, setFilteredData] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('全部');
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [downloadBytes, setDownloadBytes] = useState(0);
 
@@ -25,16 +25,12 @@ export default function HomeScreen() {
       
       const fetchedData = await fetchPriceWatchData((written, expected) => {
         setDownloadBytes(written);
-        // Fallback to ~2.5MB (2534107 bytes) if the API doesn't return Content-Length
         const total = expected > 0 ? expected : 2534107;
         setDownloadProgress(Math.min(written / total, 1));
       });
       
-      // Filter out items with no prices
       const validData = fetchedData.filter(item => item.prices && item.prices.length > 0);
-      
       setData(validData);
-      setFilteredData(validData);
     } catch (e) {
       setError('無法獲取數據。請稍後再試。');
     } finally {
@@ -42,23 +38,43 @@ export default function HomeScreen() {
     }
   };
 
-  const handleSearch = (text: string) => {
-    setSearchQuery(text);
-    if (!text) {
-      setFilteredData(data);
-      return;
+  // Extract unique categories from data
+  const categories = useMemo(() => {
+    if (data.length === 0) return ['全部'];
+    const uniqueCats = new Set<string>();
+    data.forEach(item => {
+      const cat = item.cat1Name?.['zh-Hant'] || item.cat1Name?.en;
+      if (cat) uniqueCats.add(cat);
+    });
+    return ['全部', ...Array.from(uniqueCats).sort()];
+  }, [data]);
+
+  // Combine search and category filtering
+  const filteredData = useMemo(() => {
+    let filtered = data;
+
+    // Filter by Category
+    if (selectedCategory !== '全部') {
+      filtered = filtered.filter(item => {
+        const cat = item.cat1Name?.['zh-Hant'] || item.cat1Name?.en;
+        return cat === selectedCategory;
+      });
     }
 
-    const lowerCaseQuery = text.toLowerCase();
-    const filtered = data.filter((item) => {
-      const nameEn = item.name?.en?.toLowerCase() || '';
-      const nameZh = item.name?.['zh-Hant'] || '';
-      const brandEn = item.brand?.en?.toLowerCase() || '';
-      const brandZh = item.brand?.['zh-Hant'] || '';
-      return nameEn.includes(lowerCaseQuery) || nameZh.includes(lowerCaseQuery) || brandEn.includes(lowerCaseQuery) || brandZh.includes(lowerCaseQuery);
-    });
-    setFilteredData(filtered);
-  };
+    // Filter by Search Query
+    if (searchQuery) {
+      const lowerCaseQuery = searchQuery.toLowerCase();
+      filtered = filtered.filter((item) => {
+        const nameEn = item.name?.en?.toLowerCase() || '';
+        const nameZh = item.name?.['zh-Hant'] || '';
+        const brandEn = item.brand?.en?.toLowerCase() || '';
+        const brandZh = item.brand?.['zh-Hant'] || '';
+        return nameEn.includes(lowerCaseQuery) || nameZh.includes(lowerCaseQuery) || brandEn.includes(lowerCaseQuery) || brandZh.includes(lowerCaseQuery);
+      });
+    }
+
+    return filtered;
+  }, [data, searchQuery, selectedCategory]);
 
   const renderContent = () => {
     if (loading) {
@@ -97,6 +113,11 @@ export default function HomeScreen() {
         maxToRenderPerBatch={20}
         windowSize={5}
         contentContainerStyle={styles.listContent}
+        ListEmptyComponent={
+          <View style={styles.centerContainer}>
+            <Text style={styles.emptyText}>找不到相關貨品</Text>
+          </View>
+        }
       />
     );
   };
@@ -112,11 +133,40 @@ export default function HomeScreen() {
             style={styles.searchInput}
             placeholder="搜索產品或品牌..."
             value={searchQuery}
-            onChangeText={handleSearch}
+            onChangeText={setSearchQuery}
             clearButtonMode="while-editing"
             placeholderTextColor="#888"
           />
         </View>
+        
+        {!loading && !error && (
+          <View style={styles.categoriesWrapper}>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoriesContainer}
+            >
+              {categories.map((cat) => (
+                <TouchableOpacity
+                  key={cat}
+                  style={[
+                    styles.categoryChip,
+                    selectedCategory === cat && styles.selectedCategoryChip
+                  ]}
+                  onPress={() => setSelectedCategory(cat)}
+                >
+                  <Text style={[
+                    styles.categoryText,
+                    selectedCategory === cat && styles.selectedCategoryText
+                  ]}>
+                    {cat}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         {renderContent()}
       </View>
     </SafeAreaView>
@@ -136,8 +186,6 @@ const styles = StyleSheet.create({
   header: {
     padding: 16,
     backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
     alignItems: 'center',
   },
   headerTitle: {
@@ -148,8 +196,6 @@ const styles = StyleSheet.create({
   searchContainer: {
     padding: 12,
     backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
   },
   searchInput: {
     height: 44,
@@ -158,6 +204,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     fontSize: 16,
     color: '#333',
+  },
+  categoriesWrapper: {
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    paddingBottom: 8,
+  },
+  categoriesContainer: {
+    paddingHorizontal: 12,
+    gap: 8,
+    flexDirection: 'row',
+  },
+  categoryChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  selectedCategoryChip: {
+    backgroundColor: '#e91e63',
+    borderColor: '#e91e63',
+  },
+  categoryText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  selectedCategoryText: {
+    color: '#fff',
+    fontWeight: 'bold',
   },
   centerContainer: {
     flex: 1,
@@ -169,6 +247,11 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 16,
     color: '#666',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#999',
+    marginTop: 20,
   },
   progressContainer: {
     width: '80%',
